@@ -26,7 +26,7 @@ func validateAddSongToPlaylistReq(c *gin.Context) (AddSongToPlaylistReq, error) 
 
 func validateGetAllSongsReq(c *gin.Context) (GetAllSongsReq, error) {
 	var req GetAllSongsReq
-	err := c.ShouldBindJSON(&req)
+	err := c.ShouldBindUri(&req)
 	return req, err
 }
 

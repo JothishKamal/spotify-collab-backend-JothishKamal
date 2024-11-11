@@ -11,6 +11,7 @@ import (
 	"spotify-collab/internal/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -201,6 +202,9 @@ func (s *SongHandler) GetAllSongs(c *gin.Context) {
 		return
 	}
 
+	// No need for check err since binding checks uuid
+	uuid, _ := uuid.Parse(req.PlaylistUUID)
+
 	u, ok := c.Get("user")
 	if !ok {
 		panic(" user failed to set in context ")
@@ -252,7 +256,7 @@ func (s *SongHandler) GetAllSongs(c *gin.Context) {
 		}
 	}
 
-	songs, err := qtx.GetAllSongs(c, req.PlaylistUUID)
+	songs, err := qtx.GetAllSongs(c, uuid)
 	log.Println(errors.Is(err, pgx.ErrNoRows))
 	log.Println(err)
 	log.Println(songs)
@@ -261,7 +265,7 @@ func (s *SongHandler) GetAllSongs(c *gin.Context) {
 		return
 	}
 
-	playlist, err := qtx.GetPlaylistIDByUUID(c, req.PlaylistUUID)
+	playlist, err := qtx.GetPlaylistIDByUUID(c, uuid)
 	if errors.Is(err, pgx.ErrNoRows) {
 		merrors.NotFound(c, "no playlist found")
 		return
@@ -373,7 +377,11 @@ func (s *SongHandler) GetBlacklistedSongs(c *gin.Context) {
 	}
 
 	q := database.New(s.db)
-	songs, err := q.GetAllBlacklisted(c, req.PlaylistUUID)
+
+	// No need for check err since binding checks uuid
+	uuid, _ := uuid.Parse(req.PlaylistUUID)
+
+	songs, err := q.GetAllBlacklisted(c, uuid)
 	if errors.Is(err, pgx.ErrNoRows) {
 		merrors.NotFound(c, "No Songs exist!")
 		return
