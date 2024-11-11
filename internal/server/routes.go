@@ -28,7 +28,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 	v1.POST("/songs/add", s.songHandler.AddSongToDB)                             // Called by the participants
 	v1.POST("/songs/:option", s.authenticate(), s.songHandler.AddSongToPlaylist) // Either accept or reject, called by the admin to add it to playlist or reject
-	v1.GET("/songs", s.authenticate(), s.songHandler.GetAllSongs)
+	v1.GET("/songs/:id", s.authenticate(), s.songHandler.GetAllSongs)            // Include songID parameter
 
 	v1.POST("/songs/blacklist", s.songHandler.BlacklistSong)
 	v1.GET("/songs/blacklist", s.songHandler.GetBlacklistedSongs)

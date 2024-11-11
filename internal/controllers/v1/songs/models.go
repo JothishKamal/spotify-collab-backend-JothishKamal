@@ -18,5 +18,5 @@ type BlacklistSongReq struct {
 }
 
 type GetAllSongsReq struct {
-	PlaylistUUID uuid.UUID `json:"playlist_uuid"`
+	PlaylistUUID string `json:"playlist_uuid" binding:"required,uuid" uri:"id"`
 }
