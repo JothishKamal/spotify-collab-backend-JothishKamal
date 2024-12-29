@@ -22,3 +22,7 @@ SELECT refresh, access, expiry, spotify_id
 FROM tokens
 INNER JOIN users on users.user_uuid = tokens.user_uuid
 WHERE tokens.user_uuid=$1;
+
+-- name: DeleteToken :exec
+DELETE FROM tokens 
+WHERE user_uuid = $1;
