@@ -127,16 +127,11 @@ func (s *SongHandler) AddSongToPlaylist(c *gin.Context) {
 			Expiry:       token.Expiry.Time,
 		}
 
-		if oauthToken.Valid() {
+		if !oauthToken.Valid() {
 			oauthToken, err = s.spotifyauth.RefreshToken(c, oauthToken)
 			tokenChanged = true
 			if err != nil {
 				merrors.InternalServer(c, fmt.Sprintf("Couldn't get access token %s", err))
-				return
-			}
-
-			if err := qtx.DeleteToken(c, user.UserUUID); err != nil {
-				merrors.InternalServer(c, fmt.Sprintf("Failed to delete existing token: %v", err))
 				return
 			}
 
@@ -241,16 +236,11 @@ func (s *SongHandler) GetAllSongs(c *gin.Context) {
 	}
 
 	tokenChanged := false
-	if oauthToken.Valid() {
+	if !oauthToken.Valid() {
 		oauthToken, err = s.spotifyauth.RefreshToken(c, oauthToken)
 		tokenChanged = true
 		if err != nil {
 			merrors.InternalServer(c, fmt.Sprintf("Couldn't get access token %s", err))
-			return
-		}
-
-		if err := qtx.DeleteToken(c, user.UserUUID); err != nil {
-			merrors.InternalServer(c, fmt.Sprintf("Failed to delete existing token: %v", err))
 			return
 		}
 

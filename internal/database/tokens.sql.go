@@ -12,16 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const deleteToken = `-- name: DeleteToken :exec
-DELETE FROM tokens 
-WHERE user_uuid = $1
-`
-
-func (q *Queries) DeleteToken(ctx context.Context, userUuid uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteToken, userUuid)
-	return err
-}
-
 const getOAuthToken = `-- name: GetOAuthToken :one
 SELECT refresh, access, expiry, spotify_id
 FROM tokens
