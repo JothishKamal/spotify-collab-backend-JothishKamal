@@ -109,13 +109,24 @@ func (p *PlaylistHandler) CreatePlaylist(c *gin.Context) {
 		return
 	}
 
+	// Add user as owner to playlist_members
+	err = qtx.AddPlaylistMember(c, database.AddPlaylistMemberParams{
+		UserUuid:     user.UserUUID,
+		PlaylistUuid: playlist.PlaylistUuid,
+		Role:         "owner",
+	})
+	if err != nil {
+		merrors.InternalServer(c, err.Error())
+		return
+	}
+
 	err = tx.Commit(c)
 	if err != nil {
 		merrors.InternalServer(c, err.Error())
 		return
 	}
 
-	if tokenChanged == true {
+	if tokenChanged {
 		c.JSON(http.StatusOK, utils.BaseResponse{
 			Success:    true,
 			Message:    "playlist successfully created",
@@ -133,6 +144,136 @@ func (p *PlaylistHandler) CreatePlaylist(c *gin.Context) {
 	}
 }
 
+func (p *PlaylistHandler) JoinPlaylist(c *gin.Context) {
+	req, err := validateJoinPlaylistReq(c)
+	if err != nil {
+		merrors.Validation(c, err.Error())
+		return
+	}
+
+	u, ok := c.Get("user")
+	if !ok {
+		panic(" user failed to set in context ")
+	}
+	user := u.(*auth.ContextUser)
+	if user == auth.AnonymousUser {
+		merrors.Unauthorized(c, "This action is forbidden.")
+		return
+	}
+
+	tx, err := p.db.Begin(c)
+	if err != nil {
+		merrors.InternalServer(c, err.Error())
+		return
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback(c)
+		}
+	}()
+
+	qtx := database.New(p.db).WithTx(tx)
+
+	playlist, err := qtx.GetPlaylistUUIDByCode(c, req.PlaylistCode)
+	if errors.Is(err, pgx.ErrNoRows) {
+		merrors.NotFound(c, "no playlist found")
+		return
+	} else if err != nil {
+		merrors.InternalServer(c, err.Error())
+		return
+	}
+
+	// Check if user is already a member of the playlist
+	_, err = qtx.GetPlaylistMember(c, database.GetPlaylistMemberParams{
+		UserUuid:     user.UserUUID,
+		PlaylistUuid: playlist,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Determine the role of the user (owner or member)
+		role := "member"
+		playlistOwner, err := qtx.GetPlaylistOwner(c, playlist)
+		if err == nil && playlistOwner == user.UserUUID {
+			role = "owner"
+		}
+
+		// Add user as a member of the playlist
+		err = qtx.AddPlaylistMember(c, database.AddPlaylistMemberParams{
+			UserUuid:     user.UserUUID,
+			PlaylistUuid: playlist,
+			Role:         role,
+		})
+		if err != nil {
+			merrors.InternalServer(c, err.Error())
+			return
+		}
+	} else if err != nil {
+		merrors.InternalServer(c, err.Error())
+		return
+	} else {
+		// User is already a member
+		c.JSON(http.StatusOK, utils.BaseResponse{
+			Success:    true,
+			Message:    "User is already a member of the playlist",
+			StatusCode: http.StatusOK,
+		})
+		return
+	}
+
+	token, err := qtx.GetOAuthToken(c, user.UserUUID)
+	if err != nil {
+		merrors.InternalServer(c, err.Error())
+		return
+	}
+
+	oauthToken := &oauth2.Token{
+		AccessToken:  string(token.Access),
+		RefreshToken: string(token.Refresh),
+		Expiry:       token.Expiry.Time,
+	}
+
+	tokenChanged := false
+	if !oauthToken.Valid() {
+		oauthToken, err = p.spotifyauth.RefreshToken(c, oauthToken)
+		tokenChanged = true
+		if err != nil {
+			merrors.InternalServer(c, fmt.Sprintf("Couldn't get access token %s", err))
+			return
+		}
+
+		_, err := qtx.UpdateToken(c, database.UpdateTokenParams{
+			Refresh:  []byte(oauthToken.RefreshToken),
+			Access:   []byte(oauthToken.AccessToken),
+			Expiry:   pgtype.Timestamptz{Time: oauthToken.Expiry, Valid: true},
+			UserUuid: user.UserUUID,
+		})
+		if err != nil {
+			merrors.InternalServer(c, err.Error())
+			return
+		}
+	}
+
+	err = tx.Commit(c)
+	if err != nil {
+		merrors.InternalServer(c, err.Error())
+		return
+	}
+
+	if tokenChanged {
+		c.JSON(http.StatusOK, utils.BaseResponse{
+			Success:    true,
+			Message:    "Successfully joined playlist",
+			MetaData:   oauthToken,
+			StatusCode: http.StatusOK,
+		})
+	} else {
+		c.JSON(http.StatusOK, utils.BaseResponse{
+			Success:    true,
+			Message:    "Successfully joined playlist",
+			StatusCode: http.StatusOK,
+		})
+	}
+}
+
 func (p *PlaylistHandler) ListPlaylists(c *gin.Context) {
 	u, ok := c.Get("user")
 	if !ok {
@@ -145,19 +286,31 @@ func (p *PlaylistHandler) ListPlaylists(c *gin.Context) {
 	}
 
 	q := database.New(p.db)
-	playlists, err := q.ListPlaylists(c, user.UserUUID)
-	if len(playlists) == 0 {
-		merrors.NotFound(c, "No Playlists exist!")
-		return
-	} else if err != nil {
+
+	ownedPlaylists, err := q.ListOwnedPlaylists(c, user.UserUUID)
+	if err != nil {
 		merrors.InternalServer(c, err.Error())
 		return
 	}
 
+	memberPlaylists, err := q.ListMemberPlaylists(c, user.UserUUID)
+	if err != nil {
+		merrors.InternalServer(c, err.Error())
+		return
+	}
+
+	if len(ownedPlaylists) == 0 && len(memberPlaylists) == 0 {
+		merrors.NotFound(c, "No Playlists exist!")
+		return
+	}
+
 	c.JSON(http.StatusOK, utils.BaseResponse{
-		Success:    true,
-		Message:    "Playlists successfully retrieved",
-		Data:       playlists,
+		Success: true,
+		Message: "Playlists successfully retrieved",
+		Data: map[string]interface{}{
+			"owner":  ownedPlaylists,
+			"member": memberPlaylists,
+		},
 		StatusCode: http.StatusOK,
 	})
 }

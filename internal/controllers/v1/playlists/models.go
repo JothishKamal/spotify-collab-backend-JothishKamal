@@ -16,3 +16,7 @@ type UpdatePlaylistReq struct {
 type DeletePlaylistReq struct {
 	PlaylistUUID string `json:"playlist_uuid" binding:"required,uuid" uri:"id"`
 }
+
+type JoinPlaylistReq struct {
+	PlaylistCode string `json:"playlist_code" binding:"required"`
+}

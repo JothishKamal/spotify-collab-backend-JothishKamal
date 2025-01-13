@@ -30,3 +30,9 @@ func validateDeletePlaylistReq(c *gin.Context) (DeletePlaylistReq, error) {
 	err := c.ShouldBindUri(&req)
 	return req, err
 }
+
+func validateJoinPlaylistReq(c *gin.Context) (JoinPlaylistReq, error) {
+	var req JoinPlaylistReq
+	err := c.ShouldBindJSON(&req)
+	return req, err
+}

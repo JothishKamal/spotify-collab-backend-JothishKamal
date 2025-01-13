@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createPlaylist = `-- name: CreatePlaylist :one
@@ -91,6 +92,19 @@ func (q *Queries) GetPlaylistIDByUUID(ctx context.Context, playlistUuid uuid.UUI
 	return playlist_id, err
 }
 
+const getPlaylistOwner = `-- name: GetPlaylistOwner :one
+SELECT user_uuid
+FROM playlists
+WHERE playlist_uuid = $1
+`
+
+func (q *Queries) GetPlaylistOwner(ctx context.Context, playlistUuid uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getPlaylistOwner, playlistUuid)
+	var user_uuid uuid.UUID
+	err := row.Scan(&user_uuid)
+	return user_uuid, err
+}
+
 const getPlaylistUUIDByCode = `-- name: GetPlaylistUUIDByCode :one
 SELECT playlist_uuid
 FROM playlists
@@ -120,6 +134,104 @@ func (q *Queries) GetPlaylistUUIDByName(ctx context.Context, arg GetPlaylistUUID
 	var playlist_uuid uuid.UUID
 	err := row.Scan(&playlist_uuid)
 	return playlist_uuid, err
+}
+
+const listMemberPlaylists = `-- name: ListMemberPlaylists :many
+SELECT p.user_uuid, p.playlist_uuid, p.playlist_id, p.name, p.playlist_code, p.created_at, p.updated_at, COUNT(pm2.user_uuid) AS member_count
+FROM playlists p
+JOIN playlist_members pm ON p.playlist_uuid = pm.playlist_uuid
+LEFT JOIN playlist_members pm2 ON p.playlist_uuid = pm2.playlist_uuid
+WHERE pm.user_uuid = $1 AND pm.role = 'member'
+GROUP BY p.playlist_uuid
+`
+
+type ListMemberPlaylistsRow struct {
+	UserUuid     uuid.UUID          `json:"user_uuid"`
+	PlaylistUuid uuid.UUID          `json:"playlist_uuid"`
+	PlaylistID   string             `json:"playlist_id"`
+	Name         string             `json:"name"`
+	PlaylistCode string             `json:"playlist_code"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	MemberCount  int64              `json:"member_count"`
+}
+
+func (q *Queries) ListMemberPlaylists(ctx context.Context, userUuid uuid.UUID) ([]ListMemberPlaylistsRow, error) {
+	rows, err := q.db.Query(ctx, listMemberPlaylists, userUuid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMemberPlaylistsRow
+	for rows.Next() {
+		var i ListMemberPlaylistsRow
+		if err := rows.Scan(
+			&i.UserUuid,
+			&i.PlaylistUuid,
+			&i.PlaylistID,
+			&i.Name,
+			&i.PlaylistCode,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.MemberCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOwnedPlaylists = `-- name: ListOwnedPlaylists :many
+SELECT p.user_uuid, p.playlist_uuid, p.playlist_id, p.name, p.playlist_code, p.created_at, p.updated_at, COUNT(pm2.user_uuid) AS member_count
+FROM playlists p
+JOIN playlist_members pm ON p.playlist_uuid = pm.playlist_uuid
+LEFT JOIN playlist_members pm2 ON p.playlist_uuid = pm2.playlist_uuid
+WHERE pm.user_uuid = $1 AND pm.role = 'owner'
+GROUP BY p.playlist_uuid
+`
+
+type ListOwnedPlaylistsRow struct {
+	UserUuid     uuid.UUID          `json:"user_uuid"`
+	PlaylistUuid uuid.UUID          `json:"playlist_uuid"`
+	PlaylistID   string             `json:"playlist_id"`
+	Name         string             `json:"name"`
+	PlaylistCode string             `json:"playlist_code"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	MemberCount  int64              `json:"member_count"`
+}
+
+func (q *Queries) ListOwnedPlaylists(ctx context.Context, userUuid uuid.UUID) ([]ListOwnedPlaylistsRow, error) {
+	rows, err := q.db.Query(ctx, listOwnedPlaylists, userUuid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOwnedPlaylistsRow
+	for rows.Next() {
+		var i ListOwnedPlaylistsRow
+		if err := rows.Scan(
+			&i.UserUuid,
+			&i.PlaylistUuid,
+			&i.PlaylistID,
+			&i.Name,
+			&i.PlaylistCode,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.MemberCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listPlaylists = `-- name: ListPlaylists :many

@@ -42,7 +42,7 @@ func NewService() *pgxpool.Pool {
 	if dbInstance != nil {
 		return dbInstance
 	}
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", username, password, host, port, database)
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", username, password, host, port, database)
 	db, err := pgxpool.New(context.Background(), connStr)
 	if err != nil {
 		log.Fatal(err)

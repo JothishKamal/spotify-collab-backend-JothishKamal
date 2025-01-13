@@ -37,3 +37,24 @@ RETURNING *;
 -- name: DeletePlaylist :execrows
 DELETE FROM playlists
 WHERE playlist_uuid = $1;
+
+-- name: ListOwnedPlaylists :many
+SELECT p.*, COUNT(pm2.user_uuid) AS member_count
+FROM playlists p
+JOIN playlist_members pm ON p.playlist_uuid = pm.playlist_uuid
+LEFT JOIN playlist_members pm2 ON p.playlist_uuid = pm2.playlist_uuid
+WHERE pm.user_uuid = $1 AND pm.role = 'owner'
+GROUP BY p.playlist_uuid;
+
+-- name: ListMemberPlaylists :many
+SELECT p.*, COUNT(pm2.user_uuid) AS member_count
+FROM playlists p
+JOIN playlist_members pm ON p.playlist_uuid = pm.playlist_uuid
+LEFT JOIN playlist_members pm2 ON p.playlist_uuid = pm2.playlist_uuid
+WHERE pm.user_uuid = $1 AND pm.role = 'member'
+GROUP BY p.playlist_uuid;
+
+-- name: GetPlaylistOwner :one
+SELECT user_uuid
+FROM playlists
+WHERE playlist_uuid = $1;

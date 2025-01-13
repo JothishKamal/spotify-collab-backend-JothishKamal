@@ -19,6 +19,14 @@ type Playlist struct {
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
+type PlaylistMember struct {
+	UserUuid     uuid.UUID          `json:"user_uuid"`
+	PlaylistUuid uuid.UUID          `json:"playlist_uuid"`
+	Role         string             `json:"role"`
+	JoinedAt     pgtype.Timestamptz `json:"joined_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Song struct {
 	SongUri      string    `json:"song_uri"`
 	PlaylistUuid uuid.UUID `json:"playlist_uuid"`
