@@ -1,6 +1,6 @@
 -- name: CreatePlaylist :one
-INSERT INTO playlists (playlist_id, user_uuid, name, playlist_code)
-VALUES ($1, $2, $3, $4)
+INSERT INTO playlists (playlist_id, user_uuid, name, playlist_code, image_url)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: ListPlaylists :many

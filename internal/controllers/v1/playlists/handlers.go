@@ -4,11 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"spotify-collab/internal/config"
 	"spotify-collab/internal/controllers/v1/auth"
 	"spotify-collab/internal/database"
 	"spotify-collab/internal/merrors"
 	"spotify-collab/internal/utils"
 
+	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -40,7 +42,7 @@ func (p *PlaylistHandler) CreatePlaylist(c *gin.Context) {
 
 	u, ok := c.Get("user")
 	if !ok {
-		panic(" user failed to set in context ")
+		panic("user failed to set in context")
 	}
 	user := u.(*auth.ContextUser)
 	if user == auth.AnonymousUser {
@@ -89,6 +91,24 @@ func (p *PlaylistHandler) CreatePlaylist(c *gin.Context) {
 		}
 	}
 
+	var imageURL string
+	file, _, err := c.Request.FormFile("image")
+	if err == nil {
+		defer file.Close()
+		uploadResult, err := config.Cloudinary.Upload.Upload(c, file, uploader.UploadParams{
+			Folder:         "collabify/playlists",
+			Transformation: "c_fill,g_auto,h_250,w_250",
+			PublicID:       fmt.Sprintf("%s-%s", user.UserUUID, req.Name),
+			Tags:           []string{"collabify", "playlist", "image"},
+			Context:        map[string]string{"user_uuid": user.UserUUID.String(), "playlist_name": req.Name},
+		})
+		if err != nil {
+			merrors.InternalServer(c, fmt.Sprintf("Failed to upload image: %s", err.Error()))
+			return
+		}
+		imageURL = uploadResult.SecureURL
+	}
+
 	// Generate Playlist from spotify
 	client := spotify.New(p.spotifyauth.Client(c, oauthToken))
 	spotifyPlaylist, err := client.CreatePlaylistForUser(c, token.SpotifyID, req.Name, "", true, false)
@@ -102,6 +122,7 @@ func (p *PlaylistHandler) CreatePlaylist(c *gin.Context) {
 		UserUuid:     user.UserUUID,
 		Name:         req.Name,
 		PlaylistCode: GeneratePlaylistCode(6),
+		ImageUrl:     &imageURL,
 	})
 	// Check name already exists
 	if err != nil {

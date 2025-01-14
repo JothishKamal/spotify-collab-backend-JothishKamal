@@ -6,7 +6,7 @@ import (
 
 func validateCreatePlaylist(c *gin.Context) (CreatePlaylistReq, error) {
 	var req CreatePlaylistReq
-	err := c.ShouldBindJSON(&req)
+	err := c.ShouldBind(&req)
 	return req, err
 }
 

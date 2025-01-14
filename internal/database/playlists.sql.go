@@ -13,9 +13,9 @@ import (
 )
 
 const createPlaylist = `-- name: CreatePlaylist :one
-INSERT INTO playlists (playlist_id, user_uuid, name, playlist_code)
-VALUES ($1, $2, $3, $4)
-RETURNING user_uuid, playlist_uuid, playlist_id, name, playlist_code, created_at, updated_at
+INSERT INTO playlists (playlist_id, user_uuid, name, playlist_code, image_url)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING user_uuid, playlist_uuid, playlist_id, name, playlist_code, image_url, created_at, updated_at
 `
 
 type CreatePlaylistParams struct {
@@ -23,6 +23,7 @@ type CreatePlaylistParams struct {
 	UserUuid     uuid.UUID `json:"user_uuid"`
 	Name         string    `json:"name"`
 	PlaylistCode string    `json:"playlist_code"`
+	ImageUrl     *string   `json:"image_url"`
 }
 
 func (q *Queries) CreatePlaylist(ctx context.Context, arg CreatePlaylistParams) (Playlist, error) {
@@ -31,6 +32,7 @@ func (q *Queries) CreatePlaylist(ctx context.Context, arg CreatePlaylistParams) 
 		arg.UserUuid,
 		arg.Name,
 		arg.PlaylistCode,
+		arg.ImageUrl,
 	)
 	var i Playlist
 	err := row.Scan(
@@ -39,6 +41,7 @@ func (q *Queries) CreatePlaylist(ctx context.Context, arg CreatePlaylistParams) 
 		&i.PlaylistID,
 		&i.Name,
 		&i.PlaylistCode,
+		&i.ImageUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -59,7 +62,7 @@ func (q *Queries) DeletePlaylist(ctx context.Context, playlistUuid uuid.UUID) (i
 }
 
 const getPlaylist = `-- name: GetPlaylist :one
-SELECT user_uuid, playlist_uuid, playlist_id, name, playlist_code, created_at, updated_at
+SELECT user_uuid, playlist_uuid, playlist_id, name, playlist_code, image_url, created_at, updated_at
 FROM playlists
 WHERE playlist_uuid = $1
 `
@@ -73,6 +76,7 @@ func (q *Queries) GetPlaylist(ctx context.Context, playlistUuid uuid.UUID) (Play
 		&i.PlaylistID,
 		&i.Name,
 		&i.PlaylistCode,
+		&i.ImageUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -137,7 +141,7 @@ func (q *Queries) GetPlaylistUUIDByName(ctx context.Context, arg GetPlaylistUUID
 }
 
 const listMemberPlaylists = `-- name: ListMemberPlaylists :many
-SELECT p.user_uuid, p.playlist_uuid, p.playlist_id, p.name, p.playlist_code, p.created_at, p.updated_at, COUNT(pm2.user_uuid) AS member_count
+SELECT p.user_uuid, p.playlist_uuid, p.playlist_id, p.name, p.playlist_code, p.image_url, p.created_at, p.updated_at, COUNT(pm2.user_uuid) AS member_count
 FROM playlists p
 JOIN playlist_members pm ON p.playlist_uuid = pm.playlist_uuid
 LEFT JOIN playlist_members pm2 ON p.playlist_uuid = pm2.playlist_uuid
@@ -151,6 +155,7 @@ type ListMemberPlaylistsRow struct {
 	PlaylistID   string             `json:"playlist_id"`
 	Name         string             `json:"name"`
 	PlaylistCode string             `json:"playlist_code"`
+	ImageUrl     *string            `json:"image_url"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 	MemberCount  int64              `json:"member_count"`
@@ -171,6 +176,7 @@ func (q *Queries) ListMemberPlaylists(ctx context.Context, userUuid uuid.UUID) (
 			&i.PlaylistID,
 			&i.Name,
 			&i.PlaylistCode,
+			&i.ImageUrl,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.MemberCount,
@@ -186,7 +192,7 @@ func (q *Queries) ListMemberPlaylists(ctx context.Context, userUuid uuid.UUID) (
 }
 
 const listOwnedPlaylists = `-- name: ListOwnedPlaylists :many
-SELECT p.user_uuid, p.playlist_uuid, p.playlist_id, p.name, p.playlist_code, p.created_at, p.updated_at, COUNT(pm2.user_uuid) AS member_count
+SELECT p.user_uuid, p.playlist_uuid, p.playlist_id, p.name, p.playlist_code, p.image_url, p.created_at, p.updated_at, COUNT(pm2.user_uuid) AS member_count
 FROM playlists p
 JOIN playlist_members pm ON p.playlist_uuid = pm.playlist_uuid
 LEFT JOIN playlist_members pm2 ON p.playlist_uuid = pm2.playlist_uuid
@@ -200,6 +206,7 @@ type ListOwnedPlaylistsRow struct {
 	PlaylistID   string             `json:"playlist_id"`
 	Name         string             `json:"name"`
 	PlaylistCode string             `json:"playlist_code"`
+	ImageUrl     *string            `json:"image_url"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 	MemberCount  int64              `json:"member_count"`
@@ -220,6 +227,7 @@ func (q *Queries) ListOwnedPlaylists(ctx context.Context, userUuid uuid.UUID) ([
 			&i.PlaylistID,
 			&i.Name,
 			&i.PlaylistCode,
+			&i.ImageUrl,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.MemberCount,
@@ -235,7 +243,7 @@ func (q *Queries) ListOwnedPlaylists(ctx context.Context, userUuid uuid.UUID) ([
 }
 
 const listPlaylists = `-- name: ListPlaylists :many
-SELECT user_uuid, playlist_uuid, playlist_id, name, playlist_code, created_at, updated_at
+SELECT user_uuid, playlist_uuid, playlist_id, name, playlist_code, image_url, created_at, updated_at
 FROM playlists
 WHERE user_uuid = $1
 `
@@ -255,6 +263,7 @@ func (q *Queries) ListPlaylists(ctx context.Context, userUuid uuid.UUID) ([]Play
 			&i.PlaylistID,
 			&i.Name,
 			&i.PlaylistCode,
+			&i.ImageUrl,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -272,7 +281,7 @@ const updatePlaylistName = `-- name: UpdatePlaylistName :one
 UPDATE playlists
 SET name = $1
 WHERE playlist_uuid = $2
-RETURNING user_uuid, playlist_uuid, playlist_id, name, playlist_code, created_at, updated_at
+RETURNING user_uuid, playlist_uuid, playlist_id, name, playlist_code, image_url, created_at, updated_at
 `
 
 type UpdatePlaylistNameParams struct {
@@ -289,6 +298,7 @@ func (q *Queries) UpdatePlaylistName(ctx context.Context, arg UpdatePlaylistName
 		&i.PlaylistID,
 		&i.Name,
 		&i.PlaylistCode,
+		&i.ImageUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

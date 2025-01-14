@@ -4,6 +4,7 @@ CREATE TABLE public.playlists (
 	playlist_id text NOT NULL,
 	"name" citext NOT NULL,
 	playlist_code citext NOT NULL,
+	image_url text,
 	created_at timestamptz DEFAULT now() NOT NULL,
 	updated_at timestamptz DEFAULT now() NOT NULL,
 	CONSTRAINT playlists_pk PRIMARY KEY (playlist_uuid),

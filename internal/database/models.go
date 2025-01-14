@@ -15,6 +15,7 @@ type Playlist struct {
 	PlaylistID   string             `json:"playlist_id"`
 	Name         string             `json:"name"`
 	PlaylistCode string             `json:"playlist_code"`
+	ImageUrl     *string            `json:"image_url"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
