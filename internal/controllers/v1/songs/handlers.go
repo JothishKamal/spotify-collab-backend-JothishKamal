@@ -80,6 +80,122 @@ func (s *SongHandler) AddSongToDB(c *gin.Context) {
 	})
 }
 
+func (s *SongHandler) DeleteSong(c *gin.Context) {
+	req, err := validateDeleteSongReq(c)
+	if err != nil {
+		merrors.Validation(c, err.Error())
+		return
+	}
+
+	u, ok := c.Get("user")
+	if !ok {
+		panic("user failed to set in context")
+	}
+	user := u.(*auth.ContextUser)
+	if user == auth.AnonymousUser {
+		merrors.Unauthorized(c, "This action is forbidden.")
+		return
+	}
+
+	tx, err := s.db.Begin(c)
+	if err != nil {
+		merrors.InternalServer(c, err.Error())
+		return
+	}
+	defer tx.Rollback(c)
+	qtx := database.New(s.db).WithTx(tx)
+
+	playlistUuid, _ := uuid.Parse(req.PlaylistUUID)
+
+	// Check if the user is the owner of the playlist
+	playlistMember, err := qtx.GetPlaylistMember(c, database.GetPlaylistMemberParams{
+		UserUuid:     user.UserUUID,
+		PlaylistUuid: playlistUuid,
+	})
+	if err != nil {
+		merrors.InternalServer(c, err.Error())
+		return
+	}
+
+	if playlistMember.Role != "owner" {
+		merrors.Unauthorized(c, "Only the owner can delete songs from the playlist.")
+		return
+	}
+
+	// Get OAuth token
+	token, err := qtx.GetOAuthToken(c, user.UserUUID)
+	if err != nil {
+		merrors.InternalServer(c, err.Error())
+		return
+	}
+
+	oauthToken := &oauth2.Token{
+		AccessToken:  string(token.Access),
+		RefreshToken: string(token.Refresh),
+		Expiry:       token.Expiry.Time,
+	}
+
+	tokenChanged := false
+	if !oauthToken.Valid() {
+		oauthToken, err = s.spotifyauth.RefreshToken(c, oauthToken)
+		tokenChanged = true
+		if err != nil {
+			merrors.InternalServer(c, fmt.Sprintf("Couldn't get access token %s", err))
+			return
+		}
+
+		_, err := qtx.UpdateToken(c, database.UpdateTokenParams{
+			Refresh:  []byte(oauthToken.RefreshToken),
+			Access:   []byte(oauthToken.AccessToken),
+			Expiry:   pgtype.Timestamptz{Time: oauthToken.Expiry, Valid: true},
+			UserUuid: user.UserUUID,
+		})
+		if err != nil {
+			merrors.InternalServer(c, err.Error())
+			return
+		}
+	}
+
+	// Delete song from Spotify
+	client := spotify.New(s.spotifyauth.Client(c, oauthToken))
+	_, err = client.RemoveTracksFromPlaylist(c, spotify.ID(req.PlaylistUUID), spotify.ID(req.SongURI))
+	if err != nil {
+		merrors.InternalServer(c, fmt.Sprintf("Failed to delete song from Spotify: %s", err.Error()))
+		return
+	}
+
+	// Delete song from backend database
+	err = qtx.DeleteSong(c, database.DeleteSongParams{
+		SongUri:      req.SongURI,
+		PlaylistUuid: playlistUuid,
+	})
+	if err != nil {
+		merrors.InternalServer(c, err.Error())
+		return
+	}
+
+	err = tx.Commit(c)
+	if err != nil {
+		merrors.InternalServer(c, err.Error())
+		return
+	}
+
+	if tokenChanged {
+		c.JSON(http.StatusOK, utils.BaseResponse{
+			Success:    true,
+			Message:    "Song successfully deleted",
+			MetaData:   oauthToken,
+			StatusCode: http.StatusOK,
+		})
+	} else {
+		c.JSON(http.StatusOK, utils.BaseResponse{
+			Success:    true,
+			Message:    "Song successfully deleted",
+			StatusCode: http.StatusOK,
+		})
+	}
+}
+
 // Adding a song through spotify api to the playlist
 func (s *SongHandler) AddSongToPlaylist(c *gin.Context) {
 	req, err := validateAddSongToPlaylistReq(c)
@@ -179,7 +295,7 @@ func (s *SongHandler) AddSongToPlaylist(c *gin.Context) {
 		return
 	}
 
-	if tokenChanged == true {
+	if tokenChanged {
 		c.JSON(http.StatusOK, utils.BaseResponse{
 			Success:    true,
 			Message:    message,
@@ -322,7 +438,7 @@ func (s *SongHandler) GetAllSongs(c *gin.Context) {
 	// 	playlist_tracks = append(playlist_tracks, new_tracks.Items...)
 	// }
 
-	if tokenChanged == true {
+	if tokenChanged {
 		c.JSON(http.StatusOK, utils.BaseResponse{
 			Success: true,
 			Message: "Songs successfully retrieved",

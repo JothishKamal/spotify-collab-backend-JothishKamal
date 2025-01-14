@@ -27,9 +27,10 @@ func (s *Server) RegisterRoutes() http.Handler {
 	v1.DELETE("/playlists/:id", s.authenticate(), s.playlistHandler.DeletePlaylist)
 	v1.POST("/playlists/join", s.authenticate(), s.playlistHandler.JoinPlaylist)
 
-	v1.POST("/songs/add", s.authenticate(), s.songHandler.AddSongToDB)           // Called by the participants
+	v1.POST("/songs/add", s.songHandler.AddSongToDB)                             // Called by the participants
 	v1.POST("/songs/:option", s.authenticate(), s.songHandler.AddSongToPlaylist) // Either accept or reject, called by the admin to add it to playlist or reject
 	v1.GET("/songs/:id", s.authenticate(), s.songHandler.GetAllSongs)            // Include songID parameter
+	v1.DELETE("/songs", s.authenticate(), s.songHandler.DeleteSong)
 
 	v1.POST("/songs/blacklist", s.songHandler.BlacklistSong)
 	v1.GET("/songs/blacklist", s.songHandler.GetBlacklistedSongs)

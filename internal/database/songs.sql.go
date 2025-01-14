@@ -85,6 +85,21 @@ func (q *Queries) DeleteBlacklist(ctx context.Context, arg DeleteBlacklistParams
 	return result.RowsAffected(), nil
 }
 
+const deleteSong = `-- name: DeleteSong :exec
+DELETE FROM songs
+WHERE song_uri = $1 AND playlist_uuid = $2
+`
+
+type DeleteSongParams struct {
+	SongUri      string    `json:"song_uri"`
+	PlaylistUuid uuid.UUID `json:"playlist_uuid"`
+}
+
+func (q *Queries) DeleteSong(ctx context.Context, arg DeleteSongParams) error {
+	_, err := q.db.Exec(ctx, deleteSong, arg.SongUri, arg.PlaylistUuid)
+	return err
+}
+
 const getAllBlacklisted = `-- name: GetAllBlacklisted :many
 SELECT song_uri, playlist_uuid, count
 FROM songs

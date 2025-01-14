@@ -29,3 +29,7 @@ WHERE playlist_uuid = $1 AND count = -1;
 -- name: DeleteBlacklist :execrows
 DELETE FROM songs
 WHERE song_uri = $1 AND playlist_uuid = $2 and count = -1;
+
+-- name: DeleteSong :exec
+DELETE FROM songs
+WHERE song_uri = $1 AND playlist_uuid = $2;

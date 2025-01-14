@@ -35,3 +35,9 @@ func validateBlacklistSongReq(c *gin.Context) (BlacklistSongReq, error) {
 	err := c.ShouldBindJSON(&req)
 	return req, err
 }
+
+func validateDeleteSongReq(c *gin.Context) (DeleteSongReq, error) {
+	var req DeleteSongReq
+	err := c.ShouldBindJSON(&req)
+	return req, err
+}
