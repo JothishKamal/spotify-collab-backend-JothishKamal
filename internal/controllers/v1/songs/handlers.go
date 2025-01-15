@@ -156,9 +156,18 @@ func (s *SongHandler) DeleteSong(c *gin.Context) {
 		}
 	}
 
+	playlistID, err := qtx.GetPlaylistIDByUUID(c, playlistUuid)
+	if errors.Is(err, pgx.ErrNoRows) {
+		merrors.NotFound(c, "no playlist found")
+		return
+	} else if err != nil {
+		merrors.InternalServer(c, err.Error())
+		return
+	}
+
 	// Delete song from Spotify
 	client := spotify.New(s.spotifyauth.Client(c, oauthToken))
-	_, err = client.RemoveTracksFromPlaylist(c, spotify.ID(req.PlaylistUUID), spotify.ID(req.SongURI))
+	_, err = client.RemoveTracksFromPlaylist(c, spotify.ID(playlistID), spotify.ID(req.SongURI))
 	if err != nil {
 		merrors.InternalServer(c, fmt.Sprintf("Failed to delete song from Spotify: %s", err.Error()))
 		return
