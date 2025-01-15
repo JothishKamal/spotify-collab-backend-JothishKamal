@@ -12,7 +12,7 @@ import (
 
 func (s *Server) RegisterRoutes() http.Handler {
 	r := gin.Default()
-	r.Use(CORSMiddleware())
+	// r.Use(CORSMiddleware())
 
 	r.GET("/", s.HelloWorldHandler)
 
